@@ -1,0 +1,11 @@
+# 대용량 원본/녹화 자료 — 저장소 경량화를 위해 제외
+*.rrd
+03_결과/라이브_XY_v1/visuals/*.mp4
+*.pptx
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store

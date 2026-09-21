@@ -1,0 +1,224 @@
+% postrack XY 추정 파이프라인 구조도 — 이해용 (발표용 포스터 아님)
+% 빌드: xelatex -interaction=nonstopmode pipeline_map.tex  (2회)
+% 출처: 핵심_기능_및_작동원리_수식_2026-09-18.md, 02_실험/code/*.py, 03_결과/XY추정_v1/report.md
+\documentclass[a3paper,landscape,9pt]{article}
+\usepackage[margin=10mm]{geometry}
+\usepackage{kotex}
+\usepackage{fontspec}
+\setmainhangulfont{Noto Sans CJK KR}
+\setsanshangulfont{Noto Sans CJK KR}
+\setmainfont{Noto Serif CJK KR}
+\setsansfont{Noto Sans CJK KR}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds}
+\usepackage{amsmath,amssymb}
+\pagestyle{empty}
+
+\tikzset{
+  box/.style  = {draw, thin, rounded corners=1pt, align=left,
+                 inner sep=3pt, font=\scriptsize, text width=46mm, fill=white},
+  flow/.style = {-{Latex[length=1.6mm]}, thin},
+  pred/.style = {-{Latex[length=1.6mm]}, thin, dashed, black!45},
+  unit/.style = {font=\tiny\sffamily, fill=white, inner sep=1pt},
+  sep/.style  = {thick, dash pattern=on 3pt off 2pt, black!35},
+  grouplbl/.style = {font=\scriptsize\bfseries\sffamily, text=black!55},
+}
+% 텍스트 안에서 쓰는 폰트 전환 선언(TikZ 스타일이 아니라 일반 LaTeX 매크로여야 함)
+\newcommand{\ttl}{\bfseries\sffamily\scriptsize}
+\newcommand{\why}{\itshape\tiny\color{black!55}}
+\newcommand{\src}{\ttfamily\tiny\color{blue!45!black}}
+\newcommand{\bx}[4]{\begin{minipage}[t]{46mm}\raggedright
+  {\ttl #1}\\[2pt] #2 \\[2pt] {\why #3}\\[1pt] {\src #4}
+\end{minipage}}
+% 근거·코드 줄이 없는 보조 박스용 (n1, n2) — 빈 \why/\src 뒤에 \\ 를 두면
+% "There's no line here to end" 에러가 나므로 별도 2-인자 매크로로 분리한다.
+\newcommand{\bxs}[2]{\begin{minipage}[t]{62mm}\raggedright
+  {\ttl #1}\\[2pt] #2
+\end{minipage}}
+
+\begin{document}
+\begin{tikzpicture}[remember picture]
+
+% ============================================================
+% 그룹 라벨
+% ============================================================
+\node[grouplbl] at (2,26.3)  {입력·전처리};
+\node[grouplbl] at (11,26.3) {REF — 체커보드 격자만};
+\node[grouplbl] at (23,11.5) {EST — 인쇄물 질감만};
+\node[grouplbl] at (28,26.3) {검증·비교};
+\node[grouplbl] at (28,15.3) {파생 파이프라인};
+
+% ============================================================
+% 입력·전처리 열 (x=0~7)
+% ============================================================
+\node[box] (b1) at (2,23.5) {\bx{b1. 입력 영상}
+  {$I_i(u,v)$\\1920$\times$1080, 59.398 fps, 1206 f}
+  {---}
+  {common.frames()}};
+
+\node[box] (b2) at (2,19.5) {\bx{b2. 광도 정규화}
+  {CLAHE clip 2.5, 8$\times$8 타일}
+  {폰 AE/AWB가 촬영 중 작동\\(median saturation 49$\to$167)}
+  {common.prep\_gray()}};
+
+\node[box] (b3) at (2,11.5) {\bx{b3. 왜곡 자가보정}
+  {$(k_1^{*},k_2^{*})=\arg\min\limits_{k_1,k_2}\frac1M\sum_m \mathrm{rms}_m$}
+  {별도 캘리브 촬영 불필요.\\개선 0.1\% $\to$ \textbf{보정 미적용}}
+  {calibrate.py}};
+
+\node[box] (b4) at (2,7.0) {\bx{b4. 부트스트랩 체인}
+  {$H_0=I,\ H_i=M_{i-1\to i}H_{i-1}$}
+  {잔차 0.3px가 $\sqrt{1000}$배 누적$\to$9px.\\\textbf{위치 계산엔 안 씀}}
+  {bootstrap.py}};
+
+% ============================================================
+% REF 계열 (x=9~17, 상단)
+% ============================================================
+\node[box] (b5) at (10,23.5) {\bx{b5. 보드 코너 검출}
+  {goodFeaturesToTrack\\$\to$ cornerSubPix(7$\times$7)}
+  {좌$\cdot$상 보드 \textbf{따로} 검출\\(합치면 가짜 격자, 잔차 20$\sim$40px)}
+  {ref\_track.detect\_corners()}};
+
+\node[box] (b6) at (10,19.0) {\bx{b6. 격자 노드 배정}
+  {$q_j=L_\mathrm{pred}^{-1}u_j,\ n_j=\mathrm{round}(q_j)$\\
+   $\lVert q_j-n_j\rVert_\infty<0.28$ 칸}
+  {반복 수렴시키면 격자가\\통째로 한 칸 밀림 $\to$ 단일 패스}
+  {ref\_track.refit()}};
+
+\node[box] (b7) at (10,14.3) {\bx{b7. 격자 호모그래피}
+  {$u_j\approx L_i n_j$\ \ (RANSAC 1.5px)}
+  {\textbf{매 프레임 독립 적합}\\= 누적 드리프트 원천 제거}
+  {ref\_track.refit()}};
+
+\node[box] (b8) at (19,19.0) {\bx{b8. REF 위치}
+  {$p_i^{\mathrm{REF}}=10\,L_i^{-1}c$\\$c=(960,540)^T$ px}
+  {영상중심을 격자평면으로 역투영.\\원점 = 첫 정지구간(f2-456) 평균}
+  {ref\_track.cam\_lattice()}};
+
+% ============================================================
+% EST 계열 (x=9~17, 하단)
+% ============================================================
+\node[box] (b10) at (10,10.3) {\bx{b10. ROI 마스크}
+  {PRINT 폴리곤을 $L_i$로 전파\\+ 20px 침식}
+  {체커보드$\cdot$자$\cdot$매트 전부 배제\\(6개 표본에서 겹침 0px 확인)}
+  {estimate\_xy.run()}};
+
+\node[box] (b9) at (2,15.3) {\bx{b9. 픽셀$\to$mm 야코비안}
+  {$J_0=\dfrac{\partial(L_0^{-1}u)}{\partial u}\Big\vert_{u=c}$}
+  {$h{=}1$px 수치미분.\\원근$\cdot$축 섞임을 한 번에 반영}
+  {common.jacobian\_img\_to\_lattice()}};
+
+\node[box] (b11) at (10,6.6) {\bx{b11. KLT 추적}
+  {$d_j=b_j-a_j$\\21$\times$21 창, level 3, $\le$2000점}
+  {밝기보존 + 작은 이동 가정}
+  {cv2.calcOpticalFlowPyrLK}};
+
+\node[box] (b12) at (18.5,6.6) {\bx{b12. 강인 집계}
+  {$m=\mathrm{median}(d_j)$,\ $r_j=\lVert d_j-m\rVert_2$\\
+   $r_j<3(1.4826)\mathrm{MAD}(r)+0.5$px}
+  {오추적$\cdot$반사광$\cdot$블러 제거.\\최대 5회 반복}
+  {common.robust\_translation()}};
+
+\node[box] (b13) at (24,6.6) {\bx{b13. 공통 변위}
+  {$\Delta u_i=\mathrm{median}_{j\in\mathrm{keep}}(d_j)$}
+  {다수 점이 같은 카메라 운동을\\반영한다는 가정}
+  {common.robust\_translation()}};
+
+\node[box] (b14) at (19,10.3) {\bx{b14. EST 위치 누적}
+  {$p_i^{\mathrm{EST}}=p_{i-1}^{\mathrm{EST}}-10\,J\,\Delta u_i$}
+  {\textbf{부호 반전}: 정지 세계가 움직여\\보임 = 카메라는 반대로 이동}
+  {estimate\_xy.run()}};
+
+\node[box] (b14b) at (19,14.0) {\bx{b14b. 축척 정책 분기}
+  {fixed: $J{=}J_0$\quad/\quad oracle: $J{=}J_i$}
+  {fixed=열린 루프(실물 조건),\\oracle=롤$\cdot$높이 오차 분리용 진단}
+  {estimate\_xy.py --scale}};
+
+% ============================================================
+% 검증·비교 (x=26~34, 상단)
+% ============================================================
+\node[box] (b15) at (30,22.5) {\bx{b15. 오차 분해}
+  {(fixed$-$REF) = (oracle$-$REF) + (fixed$-$oracle)\\
+   6.36 = 3.43 + 9.75\ mm}
+  {추적 자체 오차와\\축척$\cdot$방위 오차를 분리}
+  {report.py}};
+
+\node[box] (b16) at (30,18.3) {\bx{b16. REF 자체검증}
+  {V1 0.038 / V2 0.228 / V3 0.112\\
+   V4 2.57\% / \textbf{V5 5.51 FAIL} / V6 4.865}
+  {REF도 추정치. 잡음바닥이\\비교대상보다 작아야 비교가 성립}
+  {validate\_ref.py}};
+
+\node[box] (b17) at (30,25.5) {\bx{b17. 보드 교차검증}
+  {$e_i=\lVert S\,p_i^{\mathrm{TOP}}-p_i^{\mathrm{LEFT}}\rVert$\\med 0.112, p95 0.516 mm}
+  {두 보드는 독립 측정\\$\to$ 차이가 REF 오차 상한}
+  {ref\_track.\_fixed\_transform()}};
+
+% ============================================================
+% 파생 파이프라인 (x=26~34, 하단)
+% ============================================================
+\node[box] (b18) at (30,10.3) {\bx{b18. 해상도$\cdot$노이즈 스윕}
+  {$s=h/1080$,\ $g'=\mathrm{clip}(g+\mathcal N(0,\sigma^2))$\\
+   $p_i=p_{i-1}-J_0(\Delta u_i/s)\cdot10$}
+  {누적오차는 해상도 무관,\\\textbf{정지 드리프트}만 반응}
+  {degrade.py}};
+
+\node[box] (b19) at (30,6.0) {\bx{b19. 라이브 도구}
+  {$v_\mathrm{lat}=J_0v_\mathrm{img}$\\
+   $A^{*}=\arg\max\limits_{A}\frac{(Av_\mathrm{lat})_1}{\lVert v_\mathrm{lat}\rVert}$}
+  {클릭 2점으로 +X축 지정.\\갱신식은 b14와 동일}
+  {live\_xy.py}};
+
+% ============================================================
+% 보조 박스 (하단)
+% ============================================================
+\node[box, text width=62mm] (n1) at (2,3.0) {\bxs{n1. 전제}
+  {평면 순수 병진 $\cdot$ 높이$\cdot$방향 고정\\
+   밝기 보존 $\cdot$ 프레임간 이동 $<$ 5mm(반 칸)}};
+
+\node[box, text width=62mm] (n2) at (20.5,2.3) {\bxs{n2. 한계}
+  {REF 1\% 단발 글리치 max 5.51mm $\cdot$ 인쇄물 목업(실센서 아님)\\
+   피사체 움직임 분리 미검증 $\cdot$ 증분 잡음바닥 419$\mu$m}};
+
+% ============================================================
+% 정보 분리 경계선 (REF 위 / EST 아래)
+% ============================================================
+% b7은 REF 계산이지만 y가 낮아 선 아래로 내려가므로, b7 주변만 선을 아래로
+% 파이게 그려 b7을 REF 쪽에 포함시킨다(오른쪽으로 갈수록 다시 17.3으로 복귀).
+\draw[sep] (7.3,17.3) -- (7.5,17.3) -- (7.5,12.3) -- (12.5,12.3) -- (12.5,17.3) -- (33,17.3);
+\node[grouplbl, fill=white, inner sep=2pt, align=center, text width=58mm] at (24,17.9)
+  {정보 분리: REF=체커보드만 / EST=인쇄물만\\EST가 REF에서 받는 건 마스크(b10) + $t{=}0$ 축척(b9)뿐, 이후 열린 루프};
+
+% ============================================================
+% 화살표
+% ============================================================
+\draw[flow] (b1) -- (b2) node[unit,midway]{8bit gray};
+\draw[flow] (b2.east) -- ++(1.2,0) |- (b5.west) node[unit,pos=0.25]{보드 영역만 [px]};
+\draw[flow] (b2.south) -- ++(0,-1.0) -| (b11.north west) node[unit,pos=0.3,right]{PRINT ROI만 [px]};
+\draw[pred] (b3.south) -- (b3.south |- b4.north) node[unit,midway]{개선 0.1\% $\to$ 미적용};
+\draw[pred] (b4.east) -- ++(1.0,0) |- (b6.west) node[unit,pos=0.15]{격자 인덱스 예측 전용};
+\draw[flow] (b5) -- (b6) node[unit,midway]{$u_j$ [px]};
+\draw[flow] (b6) -- (b7) node[unit,midway]{$(n_j,u_j)$ [px$\leftrightarrow$칸]};
+\draw[flow] (b7) -- (b8) node[unit,midway,right]{역투영 $\times10$\ \ [칸]$\to$[mm]};
+\draw[flow] (b7.west) -- (b9.east) node[unit,midway,above]{$t{=}0$ 1회 고정 [칸/px]};
+\draw[flow] (b7.east) -- ++(1.3,0) |- (b10.north west) node[unit,pos=0.2]{폴리곤 전파+침식 [px]};
+\draw[flow] (b10) -- (b11) node[unit,midway]{[px]};
+\draw[flow] (b11) -- (b12) node[unit,midway]{[px]};
+\draw[flow] (b12) -- (b13) node[unit,midway]{[px]};
+\draw[flow] (b9.south) -- (b14.west) node[unit,midway,above]{$\times10$mm, 부호반전 [px]$\to$[mm]};
+\draw[flow] (b13.west) -- (b14.east);
+\draw[flow] (b14b) -- (b14) node[unit,midway]{$J$ 선택};
+\draw[flow] (b8.east) -- ++(0.6,0) |- (b15.west);
+% 중앙 열(b14b·구분선 라벨·b16)을 모두 관통하므로 오른쪽 바깥 여백으로
+% 크게 돌아 b15에 동쪽에서 진입한다.
+\draw[flow] (b14.north east) -- ++(0.3,0.3) -| (33.5,12.9) -- (33.5,22.5) -- (b15.east);
+\draw[flow] (b8.north east) .. controls +(2,0.5) and +(-2,-0.3) .. (b17.west);
+\draw[flow] (b8.south east) -- ++(0.5,-0.3) -| (b16.north west);
+\draw[flow] (b14.east) -- ++(0.6,0) |- (b18.west);
+% b13의 x범위(약 21.7~26.3)를 아예 지나지 않는 좁은 복도(x=27.2)로 내려가
+% b19.west로 진입한다 — b13 박스 높이를 몰라도 안전하게 피할 수 있는 경로.
+\draw[flow] (b14.south east) -| (27.2,9.0) -- (27.2,5.2) -- (b19.west);
+\node[unit] at (24,9.4) {같은 갱신식의 파생};
+
+\end{tikzpicture}
+\end{document}

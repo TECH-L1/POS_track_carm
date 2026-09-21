@@ -1,0 +1,17 @@
+{
+  "video": "02_실험\\test2\\KakaoTalk_20260901_164138790.mp4",
+  "frames": 484,
+  "fps": 29.9992355566697,
+  "reference": "10 mm LEFT checkerboard; TOP checkerboard independent cross-check",
+  "ir_estimator_input": "central IR ROI KLT only; checkerboards excluded by dilated masks; no IMU input",
+  "reference_frames": 484,
+  "ref_xcheck_median_mm": 0.14740376760716117,
+  "ref_xcheck_p95_mm": 0.7321064983638544,
+  "ir_final_error_mm": 3.5515882085157835,
+  "ir_rms_error_mm": 1.4023814353297457,
+  "ir_p95_error_mm": 3.923636342481663,
+  "mask_violation_points": 0,
+  "frames_with_board_overlap_removed": 484,
+  "sensor_video_offset_s": 0.0,
+  "warning": "Sensor curve is similarity-aligned for qualitative comparison; it is not a ground-truth trajectory."
+}

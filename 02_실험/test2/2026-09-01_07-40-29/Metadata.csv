@@ -1,0 +1,2 @@
+version,device name,recording epoch time,recording time,recording timezone,platform,appVersion,device id,sensors,sampleRateMs,standardisation,platform version
+3,SM-S931N,1788248429077,2026-09-01_07-40-29,Asia/Seoul,android,1.64,7bcf2b37-66d7-47e0-8d53-e1d5ce2756c7,Accelerometer|Gravity|Gyroscope|Orientation|Magnetometer|Annotation|TotalAcceleration|MagnetometerUncalibrated|GyroscopeUncalibrated|AccelerometerUncalibrated,10|10|10|10|10||10|10|10|10,false,36
